@@ -1,0 +1,32 @@
+(*
+  Open Authorization Protocol - Simplified Version (Week 2)
+  Simplification: A has public key for initial development.
+  Data at B modeled as a constant "Photos" that P can request.
+*)
+
+Protocol OpenAuth_Simple
+
+Types:
+  Agent A, B, P, IDP;
+  SymmetricKey SessionKey;
+  Function [Agent, Agent ->* SymmetricKey] shk;
+  Text Resource, Scope;
+
+Knowledge:
+  A: A, B, P, IDP, pk(IDP), sk(A), pk(A), pk(B), pk(P), shk(A,IDP);
+  B: B, sk(B), pk(B), pk(IDP), shk(B,IDP);
+  P: P, sk(P), pk(P), pk(IDP), shk(P,IDP);
+  IDP: A, B, P, IDP, sk(IDP), pk(IDP), pk(A), pk(B), pk(P), shk(A,IDP), shk(B,IDP), shk(P,IDP);
+
+Actions:
+  A -> IDP: A, P, B, Resource, Scope, {A, P, B, Resource, Scope, Fresh}shk(A,IDP);
+  IDP -> A: {A, P, B, Resource, Scope, Fresh}inv(sk(IDP));
+  A -> P: {A, P, B, Resource, Scope, Fresh}inv(sk(IDP));
+  P -> B: {A, P, B, Resource, Scope, Fresh}inv(sk(IDP));
+  B -> P: Photos;
+
+Goals:
+  IDP authenticates A on Fresh;
+  P authenticates A on Fresh;
+  B authenticates A on Fresh;
+  B authenticates IDP on Fresh;

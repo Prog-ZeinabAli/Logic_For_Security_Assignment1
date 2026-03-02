@@ -1,0 +1,209 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{geometry}
+\geometry{margin=2.5cm}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  frame=single,
+  backgroundcolor=\color{gray!10},
+  keywordstyle=\color{blue}
+}
+
+\title{02244 Logic for Security\\Project on Security Protocols\\Open Authorization Protocol}
+\author{Group Report}
+\date{March 2026}
+
+\begin{document}
+\maketitle
+
+\section*{Author Designation}
+\begin{itemize}
+  \item Section 1--2: Author 1
+  \item Section 3--4: Author 2
+  \item Section 5--6: Author 3
+\end{itemize}
+
+\section*{Resources Used}
+Textbooks, OFMC/AnB documentation, course lecture notes, AnBx tutorial (paolo.science), AI-assisted drafting for structure.
+
+\hrulefill
+
+\section{Introduction and Scenario}
+\textbf{Author: Author 1}
+
+We design an Open Authorization protocol for the following scenario: User $A$ has photos stored at server $B$ and wants to use photo book service $P$ to print a book. Instead of downloading from $B$ and uploading to $P$, $A$ authorizes $P$ to access $A$'s photos at $B$ directly---with read-only access to a specific resource (e.g., a folder).
+
+\textbf{Constraints:}
+\begin{itemize}
+  \item $A$ has no public/private key pair.
+  \item $A$ authenticates via an identity provider (IDP), similar to MitID.
+  \item $A$ shares a password with the IDP; the password is \emph{not} used as an encryption key.
+  \item All other parties ($B$, $P$, IDP) have public/private key pairs.
+  \item The IDP is honest and trusted; its signatures are accepted as authoritative.
+\end{itemize}
+
+\hrulefill
+
+\section{Protocol Development}
+\textbf{Author: Author 1}
+
+\subsection{Week 2: Dolev-Yao and Informal Outline}
+
+\textbf{Informal design:}
+\begin{enumerate}
+  \item $A$ sends IDP a request: ``Authorize $P$ to access my photos at $B$'' with a nonce, authenticated using the shared secret (password-derived key).
+  \item IDP verifies $A$, issues a signed authorization token binding $A$, $P$, $B$, resource scope, and nonce.
+  \item $A$ forwards the token to $P$.
+  \item $P$ presents the token to $B$.
+  \item $B$ verifies the IDP's signature and grants $P$ read access to the requested resource.
+\end{enumerate}
+
+\textbf{Data at $B$:} Modeled as a constant \texttt{Photos} that $P$ receives after presenting a valid token.
+
+\textbf{Static analysis (Dolev-Yao, passive intruder):} If the intruder only observes and does not send:
+\begin{itemize}
+  \item The intruder sees all messages on the network.
+  \item Without the shared key $shk(A,\mathit{IDP})$, the intruder cannot forge $A$'s authenticated request.
+  \item Without IDP's secret key, the intruder cannot forge the authorization token.
+  \item The intruder learns the structure of messages (agents, resource, scope) but not the binding to a fresh nonce without breaking cryptography.
+\end{itemize}
+
+\subsection{Week 3: Lazy Intruder---Role $P$ Executable}
+
+\textbf{Special task:} Show that the role of $P$ is executable when $P$ is the intruder.
+
+\textbf{Lazy intruder steps:}
+\begin{enumerate}
+  \item \textbf{Incoming:} $P$ receives $\{A, P, B, \mathit{Resource}, \mathit{Scope}, \mathit{Fresh}\}_{\mathit{inv}(\mathit{sk}(\mathit{IDP}))}$ from $A$.
+  \item The intruder can obtain this message by intercepting it (or by playing $A$ in another session and forwarding).
+  \item \textbf{Outgoing:} $P$ must send to $B$: $\{A, P, B, \mathit{Resource}, \mathit{Scope}, \mathit{Fresh}\}_{\mathit{inv}(\mathit{sk}(\mathit{IDP}))}$.
+  \item The intruder already has this message from step 1, so he can forward it.
+  \item \textbf{Incoming:} $P$ receives \texttt{Photos} from $B$.
+  \item $B$ sends this only after verifying the token; the intruder has a valid token from step 1.
+\end{enumerate}
+
+\textbf{Conclusion:} The intruder can play role $P$ by simply forwarding the token received from $A$ to $B$. This is expected---$P$ is a service that acts on behalf of $A$; the security property is that only $A$ (via IDP) can create valid tokens, not that $P$ cannot be impersonated. The goals (authentication of $A$ and IDP) still hold.
+
+\subsection{Week 4: Typing and Type-Flaw Resistance}
+
+\textbf{Format tags:} We introduce format constructors to prevent type-flaw attacks:
+\begin{itemize}
+  \item \texttt{f\_req(A,P,B,Resource,Scope,Nonce)} for the request.
+  \item \texttt{f\_token(A,P,B,Resource,Scope,Nonce)} for the authorization token.
+  \item \texttt{f\_photos(Photos)} for the response.
+\end{itemize}
+
+\textbf{Type-flaw resistance:} For any two messages in the protocol that are not variables, if they have a unifier, they must have the same type. With distinct format tags, \texttt{f\_req(...)} and \texttt{f\_token(...)} cannot unify, and neither can unify with \texttt{f\_photos(...)}. Thus the protocol is type-flaw resistant.
+
+\textbf{GetPublicKey protocol:} A separate protocol allows $A$ (who initially knows only $\mathit{pk}(\mathit{IDP})$) to obtain $\mathit{pk}(X)$ for any party $X$ from the IDP. See \texttt{GetPublicKey.AnB}.
+
+\subsection{Week 5: TLS Channels}
+
+\textbf{Special task:} Use pseudonymous channel notation to model TLS (server-authenticated).
+
+We model:
+\begin{itemize}
+  \item $A \leftrightarrow \mathit{IDP}$: TLS with IDP server authentication (confidential and authentic from $A$'s perspective).
+  \item $P \leftrightarrow B$: TLS with $B$ server authentication.
+\end{itemize}
+
+Pseudonymous channels do \emph{not} ensure freshness; therefore we retain the nonce in the protocol. The channel variant replaces some cryptographic assumptions with channel guarantees but still requires the signed token for authorization.
+
+\subsection{Week 6: Guessable Password}
+
+\textbf{Special task:} Verify security when the password (shared secret) is guessable.
+
+In OFMC, we mark $shk(A,\mathit{IDP})$ as a \emph{guessable secret}. The protocol remains secure because:
+\begin{itemize}
+  \item The password is used only for authentication (MAC), not for long-term encryption of sensitive data.
+  \item The authorization token is signed by IDP's private key, which is strong.
+  \item Even if the intruder guesses the password, he can impersonate $A$ to the IDP---but that is a limitation of password-based auth. The protocol does not amplify the risk (e.g., by using the password to encrypt valuable data).
+\end{itemize}
+
+\hrulefill
+
+\section{Final Protocol Description}
+\textbf{Author: Author 2}
+
+\subsection{Initial Knowledge}
+
+\begin{itemize}
+  \item \textbf{A:} $A$, $B$, $P$, $\mathit{IDP}$, $\mathit{pk}(\mathit{IDP})$, $shk(A,\mathit{IDP})$.
+  \item \textbf{B:} $B$, $\mathit{sk}(B)$, $\mathit{pk}(B)$, $\mathit{pk}(\mathit{IDP})$, $shk(B,\mathit{IDP})$.
+  \item \textbf{P:} $P$, $\mathit{sk}(P)$, $\mathit{pk}(P)$, $\mathit{pk}(\mathit{IDP})$, $shk(P,\mathit{IDP})$.
+  \item \textbf{IDP:} All agents, all keys, $shk(A,\mathit{IDP})$, $shk(B,\mathit{IDP})$, $shk(P,\mathit{IDP})$.
+\end{itemize}
+
+\subsection{Message Flow}
+
+\begin{enumerate}
+  \item $A \to \mathit{IDP}$: $A$, $P$, $B$, $\mathit{Resource}$, $\mathit{Scope}$, $\{A, P, B, \mathit{Resource}, \mathit{Scope}, \mathit{Fresh}\}_{shk(A,\mathit{IDP})}$
+  \item $\mathit{IDP} \to A$: $\{A, P, B, \mathit{Resource}, \mathit{Scope}, \mathit{Fresh}\}_{\mathit{inv}(\mathit{sk}(\mathit{IDP}))}$
+  \item $A \to P$: $\{A, P, B, \mathit{Resource}, \mathit{Scope}, \mathit{Fresh}\}_{\mathit{inv}(\mathit{sk}(\mathit{IDP}))}$
+  \item $P \to B$: $\{A, P, B, \mathit{Resource}, \mathit{Scope}, \mathit{Fresh}\}_{\mathit{inv}(\mathit{sk}(\mathit{IDP}))}$
+  \item $B \to P$: \texttt{Photos}
+\end{enumerate}
+
+\subsection{Goals}
+
+\begin{itemize}
+  \item $\mathit{IDP}$ authenticates $A$ on $\mathit{Fresh}$.
+  \item $P$ authenticates $A$ on $\mathit{Fresh}$.
+  \item $B$ authenticates $A$ on $\mathit{Fresh}$.
+  \item $B$ authenticates $\mathit{IDP}$ on $\mathit{Fresh}$.
+\end{itemize}
+
+\hrulefill
+
+\section{Assumptions and Simplifications}
+\textbf{Author: Author 2}
+
+\begin{itemize}
+  \item \textbf{Resource/Scope:} Modeled as text constants; real protocols would use structured scopes (e.g., OAuth scopes).
+  \item \textbf{Photos:} Single constant; real data would be structured (e.g., list of photo identifiers).
+  \item \textbf{Password:} Modeled as $shk(A,\mathit{IDP})$; in practice this would be a key derived from the password (e.g., via a PAKE or key derivation), and we assume it is not used as an encryption key for long-term secrets.
+  \item \textbf{IDP trust:} IDP is honest; all parties trust its signatures.
+  \item \textbf{Key distribution:} In the full version, $A$ obtains $\mathit{pk}(B)$, $\mathit{pk}(P)$ via the GetPublicKey protocol before running the main protocol.
+\end{itemize}
+
+\hrulefill
+
+\section{Summary of Special Tasks}
+\textbf{Author: Author 3}
+
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+\textbf{Week} & \textbf{Special Task} \\
+\midrule
+2 & Static analysis: intruder learns message structure but cannot forge tokens. \\
+3 & Lazy intruder: role $P$ executable; intruder forwards token. \\
+4 & Type-flaw resistant via format tags; GetPublicKey protocol. \\
+5 & TLS channels: pseudonymous channel for A-IDP and P-B. \\
+6 & Guessable password: protocol secure; password used only for auth. \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\hrulefill
+
+\section{AnB Files}
+\textbf{Author: Author 3}
+
+\begin{itemize}
+  \item \texttt{OpenAuth\_Simple.AnB} --- Simplified (Week 2, $A$ has key).
+  \item \texttt{OpenAuth\_Full.AnB} --- Full protocol ($A$ has no key).
+  \item \texttt{OpenAuth\_Formats.AnB} --- Type-flaw resistant (Week 4).
+  \item \texttt{OpenAuth\_TLS.AnB} --- TLS channel variant (Week 5).
+  \item \texttt{GetPublicKey.AnB} --- Key lookup protocol.
+\end{itemize}
+
+\end{document}

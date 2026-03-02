@@ -1,0 +1,34 @@
+(*
+  Open Authorization Protocol - Full Version (Week 3+)
+  A has NO public key; authenticates via shared secret (password) with IDP.
+  Password NOT used as encryption key - used only for authentication (HMAC/MAC).
+  Model: shk(A,IDP) = derived auth key (established via password, not used for
+  long-term encryption of sensitive data).
+*)
+
+Protocol OpenAuth_Full
+
+Types:
+  Agent A, B, P, IDP;
+  SymmetricKey AuthKey;
+  Function [Agent, Agent ->* SymmetricKey] shk;
+  Text Resource, Scope;
+
+Knowledge:
+  A: A, B, P, IDP, pk(IDP), shk(A,IDP);
+  B: B, sk(B), pk(B), pk(IDP), shk(B,IDP);
+  P: P, sk(P), pk(P), pk(IDP), shk(P,IDP);
+  IDP: A, B, P, IDP, sk(IDP), pk(IDP), pk(B), pk(P), shk(A,IDP), shk(B,IDP), shk(P,IDP);
+
+Actions:
+  A -> IDP: A, P, B, Resource, Scope, {A, P, B, Resource, Scope, Fresh}shk(A,IDP);
+  IDP -> A: {A, P, B, Resource, Scope, Fresh}inv(sk(IDP));
+  A -> P: {A, P, B, Resource, Scope, Fresh}inv(sk(IDP));
+  P -> B: {A, P, B, Resource, Scope, Fresh}inv(sk(IDP));
+  B -> P: Photos;
+
+Goals:
+  IDP authenticates A on Fresh;
+  P authenticates A on Fresh;
+  B authenticates A on Fresh;
+  B authenticates IDP on Fresh;

@@ -1,0 +1,35 @@
+(*
+  Open Authorization Protocol - Type-Flaw Resistant (Week 4)
+  Uses format tags to prevent type-flaw attacks.
+  Format: f1(A,P,B,Resource,Scope,Nonce), f2(AuthToken), etc.
+*)
+
+Protocol OpenAuth_Formats
+
+Types:
+  Agent A, B, P, IDP;
+  SymmetricKey AuthKey;
+  Function [Agent, Agent ->* SymmetricKey] shk;
+  Text Resource, Scope, Photos;
+  Function [Agent, Agent, Agent, Text, Text, Message ->* Message] f_req;
+  Function [Agent, Agent, Agent, Text, Text, Message ->* Message] f_token;
+  Function [Text ->* Text] f_photos;
+
+Knowledge:
+  A: A, B, P, IDP, pk(IDP), shk(A,IDP);
+  B: B, sk(B), pk(B), pk(IDP), shk(B,IDP);
+  P: P, sk(P), pk(P), pk(IDP), shk(P,IDP);
+  IDP: A, B, P, IDP, sk(IDP), pk(IDP), pk(B), pk(P), shk(A,IDP), shk(B,IDP), shk(P,IDP);
+
+Actions:
+  A -> IDP: f_req(A, P, B, Resource, Scope, Fresh), {f_req(A, P, B, Resource, Scope, Fresh)}shk(A,IDP);
+  IDP -> A: {f_token(A, P, B, Resource, Scope, Fresh)}inv(sk(IDP));
+  A -> P: {f_token(A, P, B, Resource, Scope, Fresh)}inv(sk(IDP));
+  P -> B: {f_token(A, P, B, Resource, Scope, Fresh)}inv(sk(IDP));
+  B -> P: f_photos(Photos);
+
+Goals:
+  IDP authenticates A on Fresh;
+  P authenticates A on Fresh;
+  B authenticates A on Fresh;
+  B authenticates IDP on Fresh;
