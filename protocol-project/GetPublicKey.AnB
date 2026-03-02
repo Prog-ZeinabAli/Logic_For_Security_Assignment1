@@ -1,23 +1,18 @@
-(*
-  GetPublicKey Protocol (Week 4)
-  Separate protocol: A asks IDP for public key of another party.
-  A initially knows only pk(IDP).
-*)
-
-Protocol GetPublicKey
+Protocol: GetPublicKey
 
 Types:
   Agent A, IDP, X;
+  Number Fresh;
+  Function pk;
 
 Knowledge:
   A: A, IDP, pk(IDP), X;
-  IDP: A, IDP, sk(IDP), pk(IDP), pk(X);
-  X: X, sk(X), pk(X), pk(IDP);
+  IDP: A, IDP, X, pk(IDP), pk(X), pk(A);
 
 Actions:
-  A -> IDP: A, X, Fresh;
-  IDP -> A: {X, pk(X), Fresh}inv(sk(IDP));
+  A -> IDP: A, X, Fresh
+  IDP -> A: {| X, pk(X), Fresh |} pk(IDP)
 
 Goals:
-  A authenticates IDP on Fresh;
-  A secret Fresh;
+  A authenticates IDP on Fresh
+  Fresh secret between A, IDP
